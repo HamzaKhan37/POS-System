@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:6.0
+    container_name: pos-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - pos-mongo-data:/data/db
+    restart: unless-stopped
+
+volumes:
+  pos-mongo-data:
+    name: pos-mongo-data
