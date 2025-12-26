@@ -5,12 +5,16 @@ const helmet = require('helmet')
 const errorHandler = require('./middleware/error.middleware')
 const { defaultLimiter } = require('./middleware/rateLimiter.middleware')
 
+const path = require('path')
 const app = express()
 app.use(helmet())
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }))
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf } }))
 app.use(morgan('dev'))
 app.use(defaultLimiter)
+
+// serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
 app.use('/api/auth', require('./routes/auth.routes'))
 app.use('/api/products', require('./routes/product.routes'))

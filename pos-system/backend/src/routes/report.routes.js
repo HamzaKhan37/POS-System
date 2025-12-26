@@ -8,5 +8,6 @@ router.get('/sales-summary', ctrl.salesSummary)
 router.get('/top-products', ctrl.topProducts)
 router.get('/low-stock', ctrl.lowStock)
 router.get('/analytics', ctrl.analytics)
+router.get('/export', ctrl.exportCsv)
 
 module.exports = router

@@ -89,6 +89,10 @@ exports.registerAdmin = async (req, res, next) => {
     const provided = String(adminKey || '').trim()
     if (provided !== serverKey) return res.status(403).json({ message: 'Invalid admin signup key' })
 
+    // Prevent creating multiple admins — only allow first admin to be created this way
+    const existingAdmins = await User.countDocuments({ role: 'admin' })
+    if (existingAdmins > 0) return res.status(403).json({ message: 'An admin account already exists' })
+
     // normalize email to avoid case-sensitivity issues
     const normalizedEmail = String(email).toLowerCase()
     const user = await User.create({ name, email: normalizedEmail, password, role: 'admin' })

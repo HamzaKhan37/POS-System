@@ -8,5 +8,6 @@ router.post('/seed', protect, authorize('admin'), seed)
 // users management
 router.get('/users', protect, authorize('admin'), listUsers)
 router.post('/users/:id/role', protect, authorize('admin'), updateRole)
+router.delete('/users/:id', protect, authorize('admin'), require('../controllers/admin.controller').deleteUser)
 
 module.exports = router
