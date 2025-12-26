@@ -3,6 +3,8 @@ const Product = require('../models/Product')
 
 exports.createOrder = async (req, res, next) => {
   try {
+    // require authenticated cashier/admin via route middleware; but sanity check here too
+    if (!req.user) return res.status(401).json({ message: 'Authentication required to create orders' })
     const { items, discount=0, paymentMode } = req.body
     if (!items || items.length===0) return res.status(400).json({ message: 'Cart empty' })
     if (!['CASH','CARD','UPI'].includes(paymentMode)) return res.status(400).json({ message: 'Invalid payment mode' })

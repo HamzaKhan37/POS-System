@@ -4,6 +4,12 @@ const connectDB = require('./config/db')
 
 connectDB()
 
+// ensure uploads folder exists for multer
+const fs = require('fs')
+const path = require('path')
+const uploadsDir = path.join(__dirname, '..', 'uploads')
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })
+
 if (!process.env.JWT_SECRET) {
   if (process.env.NODE_ENV === 'production') {
     console.error('FATAL: JWT_SECRET not set in production. Set process.env.JWT_SECRET and restart.');
