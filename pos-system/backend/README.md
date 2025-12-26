@@ -28,6 +28,62 @@ docker compose up -d
 
 If you use Docker, ensure `MONGO_URI` in `.env` points to `mongodb://localhost:27017/pos_db` (this is the default in `.env.example`).  If you prefer MongoDB Atlas, set the Atlas URI in `MONGO_URI` and ensure the password is URL-encoded and your IP is whitelisted.
 
+## Troubleshooting MongoDB connection errors
+
+If you see network/authentication errors when the server starts, follow these steps:
+
+1. Rotate the exposed database password immediately (Atlas → Security → Database Access → edit user or create a new user), and update your local `backend/.env` with the new password (DO NOT commit `.env`).
+2. Ensure the password is URL-encoded when used in the connection string. Example using Node REPL:
+
+```bash
+node -e "console.log(encodeURIComponent('MyP@ss#1'))"
+# → MyP%40ss%231
+```
+
+3. Add your development IP to Atlas Network Access (or use `0.0.0.0/0` temporarily while debugging). In Atlas: Security → Network Access → Add IP Address.
+4. Test the connection locally using `mongosh` or by starting the server (`npm run dev`) and watching for the **MongoDB connected** message.
+5. If you previously committed your `.env` with secrets, remove it from the repository and consider scrubbing history:
+
+```bash
+# remove the file from git index and commit
+git rm --cached backend/.env
+git commit -m "Remove sensitive backend .env from repo" && git push
+
+# To scrub from history (advanced, runs on local machine):
+# Using BFG: https://rtyley.github.io/bfg-repo-cleaner/
+# Example (replace with your secret value):
+java -jar bfg.jar --delete-files backend/.env
+# or to replace text
+java -jar bfg.jar --replace-text passwords.txt
+# After BFG run: git reflog expire --expire=now --all; git gc --prune=now --aggressive; git push --force
+```
+
+If the server still fails to connect, copy the exact error output and open an issue or post it here for help — the error message will usually indicate whether the problem is network related or authentication related.
+
+### Quick connection verification script
+
+After setting `MONGO_URI` in your **local** `backend/.env` (do not commit) and ensuring your IP is whitelisted in Atlas, you can run a quick check:
+
+```powershell
+cd pos-system/backend
+npm install
+# Run the DB connection check (prints collections and approximate counts)
+npm run db:check
+```
+
+If `npm run db:check` prints the collections and counts, your app can connect to Atlas and you should be able to see the same collections via the Atlas UI.
+
+### Automatic password URL-encoding fallback and unrecoverable cases
+
+The server will now detect if the `MONGO_URI` includes a raw password with special characters and will automatically URL-encode only the password portion for the connection attempt when possible. This helps avoid common "URI malformed" errors.
+
+However, if your password was committed with angle brackets (e.g. `<Mayana@123>`) or contains an unencoded `@` inside it, the URI becomes ambiguous and **cannot** be safely auto-corrected. In that case you will see a clear error explaining the problem. To fix it:
+
+1. Rotate the user password in Atlas (Atlas → Security → Database Access → Edit user or create new user). Use a password without angle brackets or an unencoded `@` — or URL-encode (recommended) any reserved characters.
+2. Update your local `backend/.env` with the new (URL-encoded) password inside `MONGO_URI`.
+3. Add your IP to Atlas Network Access and re-run `npm run db:check`.
+
+Note: this is a convenience fallback — you should still rotate any password that was committed to the repo and avoid committing `.env` files with secrets.
 Seeding initial data (products + categories + admin user):
 
 ```powershell
