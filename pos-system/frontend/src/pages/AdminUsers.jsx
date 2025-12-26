@@ -13,7 +13,13 @@ export default function AdminUsers(){
   async function setRole(id, role){
     if(!confirm('Change role?')) return
     setLoading(true)
-    try{ await api.post('/admin/users/'+id+'/role', { role }); fetchUsers() }catch(e){ console.error(e); alert('Role update failed') }finally{ setLoading(false) }
+    try{ await api.post('/admin/users/'+id+'/role', { role }); fetchUsers() }catch(e){ console.error(e); alert('Role update failed: '+(e.response?.data?.error||e.response?.data?.message||e.message)) }finally{ setLoading(false) }
+  }
+
+  async function deleteUser(id){
+    if(!confirm('Delete user?')) return
+    setLoading(true)
+    try{ await api.delete('/admin/users/'+id); fetchUsers() }catch(e){ console.error(e); alert('Delete failed: '+(e.response?.data?.error||e.response?.data?.message||e.message)) }finally{ setLoading(false) }
   }
 
   if (!user) return <div style={{padding:20}}>Please login to view this page</div>
@@ -34,6 +40,7 @@ export default function AdminUsers(){
               <td>
                 {u.role !== 'admin' && <button className='btn-primary' onClick={()=>setRole(u._id,'admin')} disabled={loading}>Promote to Admin</button>}
                 {u.role === 'admin' && <button className='qty-btn' onClick={()=>setRole(u._id,'cashier')} disabled={loading}>Demote to Cashier</button>}
+                &nbsp; <button className='qty-btn' onClick={()=>deleteUser(u._id)} disabled={loading} title='Delete user'>Delete</button>
               </td>
             </tr>
           ))}

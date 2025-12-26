@@ -6,6 +6,7 @@ import Signup from './pages/Signup'
 import POS from './pages/POS'
 import Dashboard from './pages/Dashboard'
 import AdminProducts from './pages/AdminProducts'
+import AdminCategories from './pages/AdminCategories'
 import AdminUsers from './pages/AdminUsers'
 import { logout, initializeAuth } from './redux/authSlice'
 
@@ -29,6 +30,7 @@ export default function App(){
             {user && user.role === 'admin' && (
               <>
                 <Link to="/admin/products">Products</Link>
+                <Link to="/admin/categories">Categories</Link>
                 <Link to="/admin/users">Users</Link>
               </>
             )}
@@ -47,6 +49,7 @@ export default function App(){
         <Route path='/pos' element={<POS/>} />
         <Route path='/dashboard' element={<Dashboard/>} />
         <Route path='/admin/products' element={<AdminProducts/>} />
+        <Route path='/admin/categories' element={<AdminCategories/>} />
         <Route path='/admin/users' element={<AdminUsers/>} />
       </Routes>
     </BrowserRouter>
