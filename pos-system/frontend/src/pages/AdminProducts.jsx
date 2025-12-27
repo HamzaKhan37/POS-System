@@ -20,8 +20,15 @@ export default function AdminProducts(){
 
   async function uploadFile(file){
     const fd = new FormData(); fd.append('image', file)
-    const res = await api.post('/products/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-    return res.data.url
+    try{
+      // Let axios set the multipart Content-Type (including boundary) automatically
+      const res = await api.post('/products/upload', fd)
+      console.log('uploadFile: received url', res.data.url)
+      return res.data.url
+    }catch(err){
+      // Surface a helpful message to the caller
+      throw new Error(err.response?.data?.message || err.message || 'Upload failed')
+    }
   }
 
   async function submit(e){
@@ -29,8 +36,14 @@ export default function AdminProducts(){
     try{
       const toSend = { ...form }
       if (selectedFile) {
-        const url = await uploadFile(selectedFile)
-        toSend.imageUrl = url
+        try{
+          const url = await uploadFile(selectedFile)
+          toSend.imageUrl = url
+          // show uploaded image preview immediately
+          setPreview(url)
+        }catch(err){
+          return alert('Image upload failed: '+err.message)
+        }
       }
       const res = await api.post('/products', toSend)
       setProducts(prev=>[res.data,...prev])
@@ -131,7 +144,14 @@ export default function AdminProducts(){
               e.preventDefault()
               try{
                 const toSend = { ...editForm }
-                if (editSelectedFile){ const url = await uploadFile(editSelectedFile); toSend.imageUrl = url }
+                if (editSelectedFile){
+                  try{
+                    const url = await uploadFile(editSelectedFile)
+                    toSend.imageUrl = url
+                  }catch(err){
+                    return alert('Image upload failed: '+err.message)
+                  }
+                }
                 const res = await api.put('/products/'+editing._id, toSend)
                 setProducts(prev=>prev.map(x=> x._id===editing._id ? res.data : x))
                 setEditing(null); setEditForm(null); setEditSelectedFile(null); setEditPreview(null)

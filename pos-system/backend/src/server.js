@@ -33,7 +33,34 @@ console.info(`MONGO_URI host: ${maskedHost} (MONGO_URI set: ${!!process.env.MONG
 ;(async () => {
   try {
     await connectDB()
-    app.listen(PORT, () => console.log(`Server listening on ${PORT}`))
+
+    // Start the HTTP server and handle common errors (e.g., port already in use)
+    const server = app.listen(PORT, () => console.log(`Server listening on ${PORT}`))
+
+    server.on('error', (err) => {
+      if (err && err.code === 'EADDRINUSE') {
+        console.error(`FATAL: Port ${PORT} is already in use. Stop the other process or set a different PORT (e.g., PORT=5001).`)
+      } else {
+        console.error('Server error:', err)
+      }
+      process.exit(1)
+    })
+
+    // Graceful shutdown
+    const graceful = async () => {
+      console.info('Shutting down server...')
+      server.close(() => {
+        console.info('HTTP server closed.')
+        // ensure mongoose disconnects
+        try { require('./config/db').disconnect && require('mongoose').disconnect() } catch (e) {}
+        process.exit(0)
+      })
+      // force exit if close does not complete
+      setTimeout(() => { console.error('Forcefully exiting'); process.exit(1) }, 5000)
+    }
+    process.on('SIGINT', graceful)
+    process.on('SIGTERM', graceful)
+
   } catch (err) {
     console.error('Server not started due to DB connection failure.')
     process.exit(1)

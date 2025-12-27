@@ -7,7 +7,26 @@ const { defaultLimiter } = require('./middleware/rateLimiter.middleware')
 
 const path = require('path')
 const app = express()
-app.use(helmet())
+app.use(helmet({
+  // allow images to be fetched cross-origin (frontend often runs on a different port during dev)
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // allow img-src from self, data, and the configured allowed origin (helps when frontend is served from another origin)
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      fontSrc: ["'self'", 'https:', 'data:'],
+      formAction: ["'self'"],
+      frameAncestors: ["'self'"],
+      imgSrc: ["'self'", 'data:', process.env.ALLOWED_ORIGIN || '*'],
+      objectSrc: ["'none'"],
+      scriptSrc: ["'self'"],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
+      upgradeInsecureRequests: []
+    }
+  }
+}))
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }))
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf } }))
 app.use(morgan('dev'))

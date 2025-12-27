@@ -3,7 +3,15 @@ const router = express.Router()
 const ctrl = require('../controllers/product.controller')
 const { protect, authorize } = require('../middleware/auth.middleware')
 const multer = require('multer')
-const upload = multer({ dest: 'uploads/' })
+const path = require('path')
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, 'uploads/') },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname)
+    cb(null, `${Date.now()}${ext}`)
+  }
+})
+const upload = multer({ storage })
 
 // Public read routes
 router.get('/', ctrl.getProducts)

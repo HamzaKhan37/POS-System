@@ -39,6 +39,7 @@ exports.uploadImage = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file' })
     const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+    console.info(`Uploaded file: ${req.file.originalname} -> ${req.file.path}, url: ${url}`)
     res.json({ url })
   } catch (err) { next(err) }
 }
