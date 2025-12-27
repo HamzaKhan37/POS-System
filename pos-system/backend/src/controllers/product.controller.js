@@ -1,5 +1,8 @@
 const Product = require('../models/Product')
 const path = require('path')
+const fs = require('fs')
+
+const DEFAULT_IMAGE_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23888' font-family='Arial' font-size='24'>No Image</text></svg>"
 
 exports.createProduct = async (req, res, next) => {
   try {
@@ -14,11 +17,38 @@ exports.createProduct = async (req, res, next) => {
 }
 
 exports.getProducts = async (req, res, next) => {
-  try { const products = await Product.find().populate('category','name'); res.json(products) } catch (err) { next(err) }
+  try {
+    let products = await Product.find().populate('category','name')
+    // If an image was supposed to be a local upload but the file is missing, return a friendly placeholder
+    products = products.map(p => {
+      if (p.imageUrl && p.imageUrl.includes('/uploads/')) {
+        const parts = p.imageUrl.split('/uploads/')
+        const filename = parts[1]
+        const filePath = path.join(__dirname, '..', '..', 'uploads', filename)
+        if (!fs.existsSync(filePath)) {
+          p.imageUrl = DEFAULT_IMAGE_SVG
+        }
+      }
+      return p
+    })
+    res.json(products)
+  } catch (err) { next(err) }
 }
 
 exports.getByBarcode = async (req, res, next) => {
-  try { const p = await Product.findOne({ barcode: req.params.barcode }).populate('category','name'); if(!p) return res.status(404).json({message:'Not found'}); res.json(p) } catch (err) { next(err) }
+  try {
+    const p = await Product.findOne({ barcode: req.params.barcode }).populate('category','name')
+    if(!p) return res.status(404).json({message:'Not found'})
+
+    if (p.imageUrl && p.imageUrl.includes('/uploads/')) {
+      const parts = p.imageUrl.split('/uploads/')
+      const filename = parts[1]
+      const filePath = path.join(__dirname, '..', '..', 'uploads', filename)
+      if (!fs.existsSync(filePath)) p.imageUrl = DEFAULT_IMAGE_SVG
+    }
+
+    res.json(p)
+  } catch (err) { next(err) }
 }
 
 exports.updateProduct = async (req, res, next) => {
