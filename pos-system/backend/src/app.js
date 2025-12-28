@@ -2,39 +2,69 @@ const express = require('express')
 const cors = require('cors')
 const morgan = require('morgan')
 const helmet = require('helmet')
+const path = require('path')
+
 const errorHandler = require('./middleware/error.middleware')
 const { defaultLimiter } = require('./middleware/rateLimiter.middleware')
 
-const path = require('path')
 const app = express()
-app.use(helmet({
-  // allow images to be fetched cross-origin (frontend often runs on a different port during dev)
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-  // allow img-src from self, data, and the configured allowed origin (helps when frontend is served from another origin)
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      baseUri: ["'self'"],
-      fontSrc: ["'self'", 'https:', 'data:'],
-      formAction: ["'self'"],
-      frameAncestors: ["'self'"],
-      imgSrc: ["'self'", 'data:', process.env.ALLOWED_ORIGIN || '*'],
-      objectSrc: ["'none'"],
-      scriptSrc: ["'self'"],
-      scriptSrcAttr: ["'none'"],
-      styleSrc: ["'self'", 'https:', "'unsafe-inline'"],
-      upgradeInsecureRequests: []
+
+/**
+ * Allowed frontend origins
+ * IMPORTANT: add your actual Vercel domain here
+ */
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'https://billingapplication-two.vercel.app/' // 🔁 replace with your real Vercel URL
+]
+
+/**
+ * Security headers (relaxed for cross-origin frontend)
+ */
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", ...ALLOWED_ORIGINS],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
+        fontSrc: ["'self'", 'https:', 'data:'],
+        objectSrc: ["'none'"]
+      }
     }
-  }
-}))
-app.use(cors({ origin: process.env.ALLOWED_ORIGIN || '*' }))
-app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf } }))
+  })
+)
+
+/**
+ * CORS – NO wildcard, explicit origins only
+ */
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true) // Postman / curl
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true)
+      return callback(new Error(`CORS blocked for origin: ${origin}`))
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  })
+)
+
+app.use(express.json({ verify: (req, res, buf) => (req.rawBody = buf) }))
 app.use(morgan('dev'))
 app.use(defaultLimiter)
 
-// serve uploaded files
+/**
+ * Static uploads
+ */
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')))
 
+/**
+ * API routes
+ */
 app.use('/api/auth', require('./routes/auth.routes'))
 app.use('/api/products', require('./routes/product.routes'))
 app.use('/api/categories', require('./routes/category.routes'))
@@ -43,12 +73,20 @@ app.use('/api/reports', require('./routes/report.routes'))
 app.use('/api/payments/phonepe', require('./routes/phonepe.routes'))
 app.use('/api/admin', require('./routes/admin.routes'))
 
-// Basic root page and health check for quick verification in dev
+/**
+ * Root + health
+ */
 app.get('/', (req, res) => {
-  res.send('<h1>POS Backend</h1><p>API base: <code>/api</code> — try <a href="/api/products">/api/products</a> or <a href="/api/orders">/api/orders</a></p>')
+  res.send('<h1>POS Backend</h1><p>API base: <code>/api</code></p>')
 })
-app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime(), env: process.env.NODE_ENV || 'development' }))
 
+app.get('/health', (req, res) =>
+  res.json({ ok: true, uptime: process.uptime() })
+)
+
+/**
+ * Error handler (last)
+ */
 app.use(errorHandler)
 
 module.exports = app
