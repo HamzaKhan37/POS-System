@@ -1,6 +1,11 @@
 const Product = require('../models/Product')
 const path = require('path')
 const fs = require('fs')
+const cloudinary = require('cloudinary').v2
+
+if (process.env.CLOUDINARY_URL) {
+  try{ cloudinary.config({ secure: true }) }catch(e){ console.warn('Cloudinary config failed', e.message) }
+}
 
 const DEFAULT_IMAGE_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23888' font-family='Arial' font-size='24'>No Image</text></svg>"
 
@@ -8,8 +13,15 @@ exports.createProduct = async (req, res, next) => {
   try {
     // if an image file was uploaded via multer, expose a usable URL
     if (req.file) {
-      const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-      req.body.imageUrl = url
+      // if Cloudinary available, upload there and remove local file
+      if (process.env.CLOUDINARY_URL) {
+        const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+        req.body.imageUrl = uploaded.secure_url
+        try{ fs.unlinkSync(req.file.path) }catch(e){}
+      } else {
+        const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+        req.body.imageUrl = url
+      }
     }
     const p = await Product.create(req.body)
     res.status(201).json(p)
@@ -54,8 +66,14 @@ exports.getByBarcode = async (req, res, next) => {
 exports.updateProduct = async (req, res, next) => {
   try {
     if (req.file) {
-      const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-      req.body.imageUrl = url
+      if (process.env.CLOUDINARY_URL) {
+        const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+        req.body.imageUrl = uploaded.secure_url
+        try{ fs.unlinkSync(req.file.path) }catch(e){}
+      } else {
+        const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+        req.body.imageUrl = url
+      }
     }
     const p = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true })
     res.json(p)
@@ -68,7 +86,14 @@ exports.deleteProduct = async (req, res, next) => { try { await Product.findById
 exports.uploadImage = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file' })
-    const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+        // upload to cloudinary if configured
+        if (process.env.CLOUDINARY_URL) {
+          const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+          try{ fs.unlinkSync(req.file.path) }catch(e){}
+          console.info(`Uploaded file to Cloudinary: ${uploaded.secure_url}`)
+          return res.json({ url: uploaded.secure_url, public_id: uploaded.public_id })
+        }
+        const url = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
     console.info(`Uploaded file: ${req.file.originalname} -> ${req.file.path}, url: ${url}`)
     res.json({ url })
   } catch (err) { next(err) }
