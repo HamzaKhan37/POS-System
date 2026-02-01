@@ -34,10 +34,6 @@ app.use(
     }
   })
 )
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-  })
-)
 
 app.use(express.json({ verify: (req, res, buf) => (req.rawBody = buf) }))
 app.use(morgan('dev'))
