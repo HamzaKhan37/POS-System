@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: pos-backend
+    dir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        scope: build,runtime
+      - key: JWT_SECRET
+        scope: build,runtime
+      - key: PORT
+        value: "5000"
