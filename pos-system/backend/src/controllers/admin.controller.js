@@ -7,6 +7,7 @@ const Settings = require('../models/Settings')
 const fs = require('fs')
 const path = require('path')
 const cloudinary = require('cloudinary').v2
+const XLSX = require('xlsx')
 
 exports.seed = async (req, res, next) => {
   try {
@@ -200,5 +201,101 @@ exports.verifyPayment = async (req, res, next) => {
     order.paymentDetails = { method: 'PHONEPE_PERSONAL', verifiedBy: req.user && req.user.id, verifiedAt: new Date() }
     await order.save()
     res.json({ ok: true, order })
+  } catch (err) { next(err) }
+}
+
+// Get database statistics
+exports.getDbStats = async (req, res, next) => {
+  try {
+    const [productCount, orderCount, userCount, categoryCount, totalRevenue] = await Promise.all([
+      Product.countDocuments(),
+      Order.countDocuments(),
+      User.countDocuments(),
+      Category.countDocuments(),
+      Order.aggregate([{ $group: { _id: null, total: { $sum: '$grandTotal' } } }])
+    ])
+    res.json({
+      products: productCount,
+      orders: orderCount,
+      users: userCount,
+      categories: categoryCount,
+      totalRevenue: (totalRevenue[0]?.total || 0).toFixed(2)
+    })
+  } catch (err) { next(err) }
+}
+
+// Export entire database as Excel file
+exports.exportDatabase = async (req, res, next) => {
+  try {
+    const [products, categories, orders, users] = await Promise.all([
+      Product.find().lean(),
+      Category.find().lean(),
+      Order.find().populate('cashier', 'name email').lean(),
+      User.find().select('-password').lean()
+    ])
+
+    // Create workbook
+    const wb = XLSX.utils.book_new()
+
+    // Add sheets (convert ObjectId to string for Excel)
+    const productsExcel = products.map(p => ({ ...p, _id: String(p._id), category: String(p.category || '') }))
+    const categoriesExcel = categories.map(c => ({ ...c, _id: String(c._id) }))
+    const ordersExcel = orders.map(o => ({ 
+      ...o, 
+      _id: String(o._id), 
+      items: JSON.stringify(o.items),
+      paymentDetails: JSON.stringify(o.paymentDetails),
+      cashier: o.cashier?.name || '',
+      createdAt: new Date(o.createdAt).toISOString()
+    }))
+    const usersExcel = users.map(u => ({ ...u, _id: String(u._id), createdAt: new Date(u.createdAt).toISOString() }))
+
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productsExcel), 'Products')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(categoriesExcel), 'Categories')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ordersExcel), 'Orders')
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(usersExcel), 'Users')
+
+    // Generate buffer and send
+    const fileName = `pos-backup-${new Date().toISOString().slice(0,10)}.xlsx`
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    res.send(XLSX.write(wb, { type: 'buffer' }))
+  } catch (err) { next(err) }
+}
+
+// Delete collection (products, orders, users, or categories) with backup
+exports.deleteCollection = async (req, res, next) => {
+  try {
+    const { collection, adminKey } = req.body
+    const serverKey = String(process.env.ADMIN_SIGNUP_KEY || '').trim()
+    if (!serverKey || String(adminKey || '').trim() !== serverKey) return res.status(403).json({ error: 'Invalid admin key' })
+
+    const allowed = ['products', 'orders', 'categories', 'users']
+    if (!allowed.includes(collection)) return res.status(400).json({ error: 'Invalid collection' })
+
+    // Backup first
+    let backupData = []
+    if (collection === 'products') backupData = await Product.find().lean()
+    else if (collection === 'orders') backupData = await Order.find().lean()
+    else if (collection === 'categories') backupData = await Category.find().lean()
+    else if (collection === 'users') {
+      // Don't delete calling admin
+      backupData = await User.find({ _id: { $ne: req.user.id } }).select('-password').lean()
+    }
+
+    // Create backup file
+    const timestamp = new Date().toISOString().replace(/[:.]/g,'-')
+    const uploadsDir = path.join(__dirname, '..', 'uploads')
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })
+    const backupPath = path.join(uploadsDir, `backup-${timestamp}-${collection}.json`)
+    fs.writeFileSync(backupPath, JSON.stringify(backupData, null, 2))
+
+    // Delete collection
+    if (collection === 'products') await Product.deleteMany({})
+    else if (collection === 'orders') await Order.deleteMany({})
+    else if (collection === 'categories') await Category.deleteMany({})
+    else if (collection === 'users') await User.deleteMany({ _id: { $ne: req.user.id } })
+
+    res.json({ ok: true, deletedCount: backupData.length, backupUrl: `/uploads/${path.basename(backupPath)}` })
   } catch (err) { next(err) }
 }

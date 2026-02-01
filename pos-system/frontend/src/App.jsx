@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import AdminProducts from './pages/AdminProducts'
 import AdminCategories from './pages/AdminCategories'
 import AdminUsers from './pages/AdminUsers'
+import AdminDatabase from './pages/AdminDatabase'
 import { logout, initializeAuth } from './redux/authSlice'
 
 export default function App(){
@@ -32,6 +33,7 @@ export default function App(){
                 <Link to="/admin/products">Products</Link>
                 <Link to="/admin/categories">Categories</Link>
                 <Link to="/admin/users">Users</Link>
+                <Link to="/admin/database">Database</Link>
               </>
             )}
           </nav>
@@ -51,6 +53,7 @@ export default function App(){
         <Route path='/admin/products' element={<AdminProducts/>} />
         <Route path='/admin/categories' element={<AdminCategories/>} />
         <Route path='/admin/users' element={<AdminUsers/>} />
+        <Route path='/admin/database' element={<AdminDatabase/>} />
       </Routes>
     </BrowserRouter>
   )

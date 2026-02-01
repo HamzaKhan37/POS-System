@@ -25,4 +25,12 @@ router.get('/pending-payments', protect, authorize('admin'), adminController.get
 // Manually verify/mark an order as paid (admin only)
 router.post('/verify-payment', protect, authorize('admin'), express.json(), adminController.verifyPayment)
 
+// Database management (stats, export, delete collections)
+router.get('/db-stats', protect, authorize('admin'), adminController.getDbStats)
+router.get('/export-db', protect, authorize('admin'), adminController.exportDatabase)
+router.post('/delete-collection', protect, authorize('admin'), express.json(), adminController.deleteCollection)
+
+// Backup DB to CSV files and wipe data (keeps calling admin)
+router.post('/backup-wipe', protect, authorize('admin'), express.json(), adminController.backupAndWipe)
+
 module.exports = router
