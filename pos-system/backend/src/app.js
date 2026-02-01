@@ -10,16 +10,13 @@ const { defaultLimiter } = require('./middleware/rateLimiter.middleware')
 const app = express()
 
 /**
- * Allowed frontend origins
- * IMPORTANT: add your actual Vercel domain here
+ * CORS – allow all origins for development/testing
+ * TODO: restrict to specific Vercel domain in production
  */
-const ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'https://billingapplication-two.vercel.app/' // 🔁 replace with your real Vercel URL
-]
+app.use(cors())
 
 /**
- * Security headers (relaxed for cross-origin frontend)
+ * Security headers
  */
 app.use(
   helmet({
@@ -27,7 +24,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        connectSrc: ["'self'", ...ALLOWED_ORIGINS],
+        connectSrc: ["'self'", 'https:'],
         imgSrc: ["'self'", 'data:', 'https:'],
         scriptSrc: ["'self'", "'unsafe-inline'", 'https:'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https:'],
@@ -37,17 +34,6 @@ app.use(
     }
   })
 )
-
-/**
- * CORS – NO wildcard, explicit origins only
- */
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true) // Postman / curl
-      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true)
-      return callback(new Error(`CORS blocked for origin: ${origin}`))
-    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
   })
