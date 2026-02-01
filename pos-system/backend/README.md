@@ -121,3 +121,16 @@ Notes:
   - PHONEPE_MERCHANT_VPA, PHONEPE_MERCHANT_NAME, PHONEPE_SECRET, PHONEPE_SANDBOX_URL
   - PHONEPE_ALLOW_TEST=true (to permit `/webhook-test` in local dev)
 - For local webhook testing use `ngrok http 5000` and configure the sandbox webhook URL to `https://<your-tunnel>/api/payments/phonepe/webhook` (PhonePe sandbox docs required for exact steps).
+
+Personal PhonePe QR (non-merchant flow)
+-------------------------------------
+If you prefer to accept payments using a personal PhonePe QR (the static QR image tied to your PhonePe account) instead of generating merchant UPI links, you can configure one of the following:
+
+- Set the environment variable `PHONEPE_QR_URL` to a public URL of your QR image (preferred). The backend will return this URL at `GET /api/payments/phonepe/qr`.
+- Or upload a PNG image named `phonepe-qr.png` to the backend uploads folder at `backend/uploads/phonepe-qr.png`. The server will serve this file and return `/uploads/phonepe-qr.png` from the same endpoint.
+
+Workflow in the app:
+- The POS UI provides a "Pay with PhonePe QR" flow that creates an order (paymentMode `UPI`) and displays your personal QR for the cashier to have the customer scan.
+- Since a personal QR cannot POST back to your server like a merchant integration, the POS UI offers a manual verification path: after the payer completes the payment on their PhonePe app, the cashier can enter the transaction ID and press "Mark as Paid" — the server will record the `transactionId` and set the order `paymentStatus` to `PAID`.
+
+Security note: the `mark-paid` endpoint requires an authenticated user with role `admin` or `cashier`.

@@ -11,7 +11,9 @@ export default function POS(){
   const cart = useSelector(s=>s.cart.items)
   const user = useSelector(s=>s.auth.user)
   const [qrDataUrl, setQrDataUrl] = React.useState(null)
+  const [personalQrUrl, setPersonalQrUrl] = React.useState(null)
   const [lastOrderId, setLastOrderId] = React.useState(null)
+  const [txInput, setTxInput] = React.useState('')
 
   const [query, setQuery] = React.useState('')
   useEffect(()=>{ dispatch(fetchProducts()) }, [])
@@ -44,6 +46,25 @@ export default function POS(){
       const qrRes = await api.post('/payments/phonepe/upi-qr', { amount: order.grandTotal, orderId: order._id, note: 'POS Order' })
       setQrDataUrl(qrRes.data.qrDataUrl)
     } catch (err){ console.error(err); alert('Error initiating UPI payment: '+(err.response?.data?.message||err.message)) }
+  }
+
+  // Use a pre-configured personal PhonePe QR (no merchant API)
+  async function payWithPersonalQR(){
+    if (cart.length===0) return alert('Cart empty')
+    if (!user || (user.role !== 'admin' && user.role !== 'cashier')) return alert('Only authenticated cashier or admin can initiate a payment. Please login.')
+    try {
+      const payload = { items: cart.map(i=>({ product: i.product, quantity: i.quantity })), paymentMode: 'UPI' }
+      const orderRes = await api.post('/orders', payload)
+      const order = orderRes.data
+      setLastOrderId(order._id)
+      // fetch personal QR URL from backend
+      const r = await api.get('/payments/phonepe/qr')
+      let url = r.data.qrUrl
+      // if backend returned a relative path, prefix with baseURL
+      if (url && url.startsWith('/')) url = (import.meta.env.VITE_API_URL || '') + url
+      setPersonalQrUrl(url)
+      setQrDataUrl(null)
+    } catch (err){ console.error(err); alert('Error initiating personal QR payment: '+(err.response?.data?.message||err.message)) }
   }
 
   function incQty(productId){ dispatch(addToCart({ product: productId, quantity: 1 })) }
@@ -121,6 +142,7 @@ export default function POS(){
           <div style={{display:'flex',gap:8,marginTop:12}}>
             <button onClick={checkout} className="pay-btn">Checkout (Cash)</button>
             <button onClick={payWithUPI} className="pay-btn" style={{background:'#1261a0'}}>Pay with UPI</button>
+            <button onClick={payWithPersonalQR} className="pay-btn" style={{background:'#6a1b9a'}}>Pay with PhonePe QR</button>
           </div>
 
           {qrDataUrl && (
@@ -129,6 +151,28 @@ export default function POS(){
               <img src={qrDataUrl} alt="UPI QR" style={{width:250,height:250}} />
               <div style={{marginTop:8}}>
                 <button onClick={simulatePayment} className="btn-primary">Simulate Payment (dev)</button>
+              </div>
+            </div>
+          )}
+
+          {personalQrUrl && (
+            <div style={{marginTop:12}}>
+              <h4>Scan this PhonePe QR</h4>
+              <img src={personalQrUrl} alt="PhonePe QR" style={{width:260,height:260}} />
+              <div style={{marginTop:8}}>
+                <input placeholder="Transaction ID (from payer)" value={txInput} onChange={e=>setTxInput(e.target.value)} style={{padding:8,marginRight:8}} />
+                <button onClick={async ()=>{
+                  if (!lastOrderId) return alert('No order present')
+                  if (!txInput) return alert('Enter transaction id')
+                  try{
+                    await api.post('/payments/phonepe/mark-paid', { orderId: lastOrderId, transactionId: txInput })
+                    dispatch(clearCart())
+                    setPersonalQrUrl(null)
+                    setLastOrderId(null)
+                    setTxInput('')
+                    alert('Order marked PAID')
+                  }catch(e){ console.error(e); alert('Mark paid failed: '+(e.response?.data?.error||e.message)) }
+                }} className="btn-primary">Mark as Paid</button>
               </div>
             </div>
           )}

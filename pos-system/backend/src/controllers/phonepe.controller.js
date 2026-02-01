@@ -1,6 +1,9 @@
 const qrcode = require('qrcode')
 const crypto = require('crypto')
 const Order = require('../models/Order')
+const Settings = require('../models/Settings')
+const fs = require('fs')
+const path = require('path')
 
 exports.createUpiQr = async (req, res, next) => {
   try {
@@ -66,5 +69,41 @@ exports.webhookTest = async (req, res, next) => {
     order.paymentDetails = payload
     await order.save()
     res.json({ ok: true })
+  } catch (err) { next(err) }
+}
+
+// Return a personal PhonePe QR image URL (set via env, Cloudinary, or uploaded file)
+exports.getQr = async (req, res, next) => {
+  try {
+    // Check Settings first (from Cloudinary or file upload)
+    const setting = await Settings.findOne({ key: 'phonepe_qr_url' })
+    if (setting && setting.value) return res.json({ qrUrl: setting.value })
+
+    const fromEnv = process.env.PHONEPE_QR_URL
+    if (fromEnv) return res.json({ qrUrl: fromEnv })
+
+    const localPath = path.join(__dirname, '..', 'uploads', 'phonepe-qr.png')
+    if (fs.existsSync(localPath)) {
+      // serve relative path; frontend will resolve against API baseURL
+      return res.json({ qrUrl: '/uploads/phonepe-qr.png' })
+    }
+
+    return res.status(404).json({ error: 'No PhonePe QR configured' })
+  } catch (err) { next(err) }
+}
+
+// Manual mark-paid endpoint for personal QR flows (protected on routes)
+exports.markPaid = async (req, res, next) => {
+  try {
+    const { orderId, transactionId } = req.body
+    if (!orderId) return res.status(400).json({ error: 'missing orderId' })
+    const order = await Order.findById(orderId)
+    if (!order) return res.status(404).json({ error: 'order not found' })
+
+    order.paymentStatus = 'PAID'
+    order.transactionId = transactionId || ''
+    order.paymentDetails = { method: 'PHONEPE_PERSONAL', notedBy: req.user && req.user.id }
+    await order.save()
+    res.json({ ok: true, order })
   } catch (err) { next(err) }
 }
