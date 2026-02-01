@@ -6,8 +6,21 @@ const Order = require('../models/Order')
 const Settings = require('../models/Settings')
 const fs = require('fs')
 const path = require('path')
-const cloudinary = require('cloudinary').v2
 const XLSX = require('xlsx')
+
+// Lazy-load cloudinary only when needed (to avoid startup errors if CLOUDINARY_URL is invalid)
+let cloudinary
+function getCloudinary() {
+  if (!cloudinary) {
+    try {
+      cloudinary = require('cloudinary').v2
+    } catch (err) {
+      console.warn('Cloudinary not available:', err.message)
+      return null
+    }
+  }
+  return cloudinary
+}
 
 exports.seed = async (req, res, next) => {
   try {
@@ -68,9 +81,10 @@ exports.uploadPhonePeQr = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' })
     // Upload to Cloudinary if configured
-    if (process.env.CLOUDINARY_URL) {
+    const cdnry = getCloudinary()
+    if (process.env.CLOUDINARY_URL && cdnry) {
       try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
+        const result = await cdnry.uploader.upload(req.file.path, {
           folder: 'pos-phonepe',
           resource_type: 'image',
           public_id: 'phonepe-qr'
@@ -78,7 +92,7 @@ exports.uploadPhonePeQr = async (req, res, next) => {
         // Delete old QR from Cloudinary if it exists
         const oldSetting = await Settings.findOne({ key: 'phonepe_qr_url' })
         if (oldSetting && oldSetting.cloudinaryPublicId) {
-          try { await cloudinary.uploader.destroy(oldSetting.cloudinaryPublicId) } catch (e) { /* ignore */ }
+          try { await cdnry.uploader.destroy(oldSetting.cloudinaryPublicId) } catch (e) { /* ignore */ }
         }
         // Store URL in Settings
         await Settings.findOneAndUpdate(

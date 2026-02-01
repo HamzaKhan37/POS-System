@@ -1,10 +1,22 @@
 const Product = require('../models/Product')
 const path = require('path')
 const fs = require('fs')
-const cloudinary = require('cloudinary').v2
 
-if (process.env.CLOUDINARY_URL) {
-  try{ cloudinary.config({ secure: true }) }catch(e){ console.warn('Cloudinary config failed', e.message) }
+// Lazy-load cloudinary only when needed (to avoid startup errors if CLOUDINARY_URL is invalid)
+let cloudinary
+function getCloudinary() {
+  if (!cloudinary) {
+    try {
+      cloudinary = require('cloudinary').v2
+      if (process.env.CLOUDINARY_URL) {
+        cloudinary.config({ secure: true })
+      }
+    } catch (err) {
+      console.warn('Cloudinary not available:', err.message)
+      return null
+    }
+  }
+  return cloudinary
 }
 
 const DEFAULT_IMAGE_SVG = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%23888' font-family='Arial' font-size='24'>No Image</text></svg>"
@@ -14,8 +26,9 @@ exports.createProduct = async (req, res, next) => {
     // if an image file was uploaded via multer, expose a usable URL
     if (req.file) {
       // if Cloudinary available, upload there and remove local file
-      if (process.env.CLOUDINARY_URL) {
-        const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+      const cdnry = getCloudinary()
+      if (process.env.CLOUDINARY_URL && cdnry) {
+        const uploaded = await cdnry.uploader.upload(req.file.path, { folder: 'pos_products' })
         req.body.imageUrl = uploaded.secure_url
         try{ fs.unlinkSync(req.file.path) }catch(e){}
       } else {
@@ -66,8 +79,9 @@ exports.getByBarcode = async (req, res, next) => {
 exports.updateProduct = async (req, res, next) => {
   try {
     if (req.file) {
-      if (process.env.CLOUDINARY_URL) {
-        const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+      const cdnry = getCloudinary()
+      if (process.env.CLOUDINARY_URL && cdnry) {
+        const uploaded = await cdnry.uploader.upload(req.file.path, { folder: 'pos_products' })
         req.body.imageUrl = uploaded.secure_url
         try{ fs.unlinkSync(req.file.path) }catch(e){}
       } else {
@@ -87,8 +101,9 @@ exports.uploadImage = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file' })
         // upload to cloudinary if configured
-        if (process.env.CLOUDINARY_URL) {
-          const uploaded = await cloudinary.uploader.upload(req.file.path, { folder: 'pos_products' })
+        const cdnry = getCloudinary()
+        if (process.env.CLOUDINARY_URL && cdnry) {
+          const uploaded = await cdnry.uploader.upload(req.file.path, { folder: 'pos_products' })
           try{ fs.unlinkSync(req.file.path) }catch(e){}
           console.info(`Uploaded file to Cloudinary: ${uploaded.secure_url}`)
           return res.json({ url: uploaded.secure_url, public_id: uploaded.public_id })
